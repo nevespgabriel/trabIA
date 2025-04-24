@@ -3,8 +3,10 @@ import random
 import pandas as pd
 
 # Carrega as planilhas com as distâncias (aérea e rodoviária)
-tb_aereo = pd.read_excel(r"C:\Users\neves\PycharmProjects\trabIA\distancias_aereo.xlsx", index_col=0)
-tb_rodov = pd.read_excel(r"C:\Users\neves\PycharmProjects\trabIA\distancias_rodoviario.xlsx", index_col=0)
+
+# Um certo alguém deixou um caminho absoluto ao invés de relativo kk
+tb_aereo = pd.read_excel("distancias_aereo.xlsx", index_col=0)
+tb_rodov = pd.read_excel("distancias_rodoviario.xlsx", index_col=0)
 
 # Definição do nó que representará a capital ou cidade
 class No:
@@ -80,23 +82,44 @@ def buscarEmA(cidade_origem, cidade_destino):
 
     return None
 
+
 # Entrada do usuário
-cidade_origem = input("Olá usuário! Digite de qual cidade deseja sair: ").strip()
+print("Escolha qual método de busca deseja utilizar\n")
+print("1) A*\n2) Busca blabla (Ainda não implementado)\n3) Busca bleble (Ainda não implementado)\n\n") # Placeholder
+escolha = input("R: ").strip()
+
+# 2. Pede a origem e destino (só depois de escolher o método)
+cidade_origem = input("\nOlá usuário! Digite de qual cidade deseja sair: ").strip()
 cidade_destino = input("Agora digite para qual cidade deseja ir: ").strip()
 
-resultadoA = buscarEmA(cidade_origem, cidade_destino)
-if resultadoA is None:
-    print("Nenhum caminho encontrado!")
+# 3. Executa a lógica baseada na escolha
+if escolha == '1':
+    print("\n--- Executando Busca A* ---")
+    resultadoA = buscarEmA(cidade_origem, cidade_destino)
+    if resultadoA is None:
+        print("Nenhum caminho encontrado pelo método A*!")
+    else:
+        caminho_encontrado, quantidade_cidades, distancia_percorrida = resultadoA
+        print("Resultado da busca em A*:")
+        print("- Caminho percorrido:")
+        for acao, cidade in caminho_encontrado:
+            print(f"  {acao} ({cidade})")
+        print("- Quantidade de cidades percorridas:", quantidade_cidades)
+        print("- Distância percorrida:", f"{distancia_percorrida:.2f}") # Formatando a distância
+
+elif escolha == '2':
+    print("\n--- Busca blabla ---")
+    #buscarEmB()
+
+
+elif escolha == '3':
+    print("\n--- Busca bleble ---")
+    #buscarEmC()
+
 else:
-    caminho_encontrado, quantidade_cidades, distancia_percorrida = resultadoA
-    print("Resultado da busca em A*:")
-    print("- Caminho percorrido:")
-    for acao, cidade in caminho_encontrado:
-        print(acao, "(", cidade, ")")
-    print("- Quantidade de cidades percorridas:", quantidade_cidades)
-    print("- Distância percorrida:", distancia_percorrida);
+    print("\nOpção inválida! Por favor, execute novamente e escolha 1, 2 ou 3.")
 
 
-
+print("\nFinalizado com sucesso!")
 #print("Resultado da busca em largura: ", buscarEmLargura());
 #print("Resultado da busca em profundidade: ", buscarEmProfundidade());
