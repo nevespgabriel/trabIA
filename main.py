@@ -2,124 +2,219 @@ import heapq
 import random
 import pandas as pd
 
-# Carrega as planilhas com as distâncias (aérea e rodoviária)
-
 # Um certo alguém deixou um caminho absoluto ao invés de relativo kk
-tb_aereo = pd.read_excel("distancias_aereo.xlsx", index_col=0)
-tb_rodov = pd.read_excel("distancias_rodoviario.xlsx", index_col=0)
+tabela_aerea = pd.read_excel("distancias_aereo.xlsx", index_col=0)
+tabela_rodoviaria = pd.read_excel("distancias_rodoviario.xlsx", index_col=0)
 
-# Definição do nó que representará a capital ou cidade
-class No:
-    def __init__(self, nome_cidade, cidade_anterior=None, acao=None, custo_acumulado=0, profundidade=0):
-        self.nome_cidade = nome_cidade
-        self.cidade_anterior = cidade_anterior
-        self.acao = acao
-        self.custo_acumulado = custo_acumulado
-        self.profundidade = profundidade
+class Ponto:
+    def __init__(self, nome_cidade : str = None, cidade_anterior = None, custo_acumulado : float = 0.0, profundidade : int = 0, rota_realizada : str = None):
+        self.nome_cidade        = nome_cidade
+        self.cidade_anterior    = cidade_anterior
+        self.custo_acumulado    = custo_acumulado
+        self.profundidade       = profundidade
+        self.rota_realizada     = rota_realizada
 
     def caminho(self):
-        no, caminho = self, []
-        while no:
-            caminho.append((no.acao, no.nome_cidade))
-            no = no.cidade_anterior
-        # Retorna o caminho em ordem (excluindo o nó inicial, que não possui ação)
+        ponto_atual : Ponto = self
+        caminho : list = []
+
+        while ponto_atual:
+            caminho.append((ponto_atual.rota_realizada, ponto_atual.nome_cidade))
+            ponto_atual = ponto_atual.cidade_anterior
         return list(reversed(caminho))[1:]
 
-def buscarEmA(cidade_origem, cidade_destino):
-    no_inicial = No(nome_cidade=cidade_origem, custo_acumulado=0)
-    h_inicial = tb_aereo.loc[cidade_origem, cidade_destino]
+def calcularCusto(distancia_base: float) -> float:
+    trafego = 10 # Deixei 10 para ser deterministíco  #random.uniform(5, 35)
+    distancia_base_float = float(distancia_base)
+    custo_pedagio = (2.5 * distancia_base_float / 100) * 0.8
+    custo_final_trecho = distancia_base_float + custo_pedagio + (trafego * 1.2)
+    return custo_final_trecho
+
+def buscarEmA(cidade_origem, cidade_destino) -> Ponto:
+    no_inicial = Ponto(nome_cidade=cidade_origem, custo_acumulado=0.0, profundidade=0)
+    h_inicial = tabela_aerea.loc[cidade_origem, cidade_destino]
     f_inicial = h_inicial  # g(n)=0, logo f = h
 
     # Cria a fila de prioridade (min-heap) e adiciona o nó inicial
     fronteira = []
+    # Adiciona o objeto Ponto inicial
     heapq.heappush(fronteira, (f_inicial, no_inicial))
 
-    melhor_custo = {cidade_origem: 0}
+    melhor_custo = {cidade_origem: 0.0} # Usa 0.0 para float
 
     while fronteira:
         f_atual, no_atual = heapq.heappop(fronteira)
 
         if no_atual.nome_cidade == cidade_destino:
-            # Quando o destino é alcançado, obtém o caminho (lista de transições)
-            caminho_encontrado = no_atual.caminho()
-            # A quantidade de cidades percorridas é:
-            # tamanho da lista de transições + 1 (para incluir o nó inicial)
-            quantidade_cidades = len(caminho_encontrado) + 1
-            # A distância percorrida (ou custo) é o custo acumulado no nó final
-            distancia_percorrida = no_atual.custo_acumulado
-            # Retorna uma tupla com as três informações:
-            return caminho_encontrado, quantidade_cidades, distancia_percorrida
+            # Retorna o objeto Ponto encontrado
+            return no_atual
 
-        for vizinho in tb_rodov.columns:
+
+        for vizinho in tabela_rodoviaria.columns:
             if vizinho == no_atual.nome_cidade:
                 continue
 
-            distancia_rodov = tb_rodov.loc[no_atual.nome_cidade, vizinho]
-            if pd.isna(distancia_rodov) or distancia_rodov == 0:
+            distancia_rodov = tabela_rodoviaria.loc[no_atual.nome_cidade, vizinho]
+            # Usa <= 0 para checagem mais robusta
+            if pd.isna(distancia_rodov) or distancia_rodov <= 0:
                 continue
 
-            # Cálculo de fatores (com pesos nos pedágios e tráfego)
-            trafego = random.uniform(5, 35)
-            custo_pedagio = 2.5 * distancia_rodov / 100
-            custo_caminho = distancia_rodov + (custo_pedagio * 0.8) + (trafego * 1.2)
-
-            g_novo = no_atual.custo_acumulado + custo_caminho
+            custo_caminho = calcularCusto(distancia_rodov)
+            g_novo = float(no_atual.custo_acumulado) + custo_caminho
 
             if vizinho not in melhor_custo or g_novo < melhor_custo[vizinho]:
                 melhor_custo[vizinho] = g_novo
 
                 # O cálculo da heurística h(n) é feito utilizando a distância aérea
-                h_novo = float(tb_aereo.at[vizinho, cidade_destino])
+                h_novo = float(tabela_aerea.at[vizinho, cidade_destino])
                 f_novo = g_novo + h_novo
 
-                novo_no = No(
+                # Usa rota_realizada e adiciona profundidade
+                novo_ponto = Ponto(
                     nome_cidade=vizinho,
-                    cidade_anterior=no_atual,
-                    acao=f"{no_atual.nome_cidade} -> {vizinho}",
-                    custo_acumulado=g_novo
+                    cidade_anterior= no_atual, # no_atual é o Ponto anterior
+                    rota_realizada=f"{no_atual.nome_cidade} -> {vizinho}",
+                    custo_acumulado=g_novo,
+                    profundidade=no_atual.profundidade + 1
                 )
-                heapq.heappush(fronteira, (f_novo, novo_no))
+                heapq.heappush(fronteira, (f_novo, novo_ponto))
 
     return None
 
+def buscarEmLargura(cidade_origem, cidade_destino) -> Ponto:
+    ponto_inicial = Ponto(nome_cidade=cidade_origem, custo_acumulado=0.0, profundidade=0)
+    
+    if cidade_origem == cidade_destino:
+        return ponto_inicial
 
-# Entrada do usuário
-print("Escolha qual método de busca deseja utilizar\n")
-print("1) A*\n2) Busca blabla (Ainda não implementado)\n3) Busca bleble (Ainda não implementado)\n\n") # Placeholder
-escolha = input("R: ").strip()
+    fronteira = [ponto_inicial]
+    explorados = {cidade_origem}
 
-# 2. Pede a origem e destino (só depois de escolher o método)
-cidade_origem = input("\nOlá usuário! Digite de qual cidade deseja sair: ").strip()
+    while fronteira:
+        ponto_atual = fronteira.pop(0)
+
+        for vizinho in tabela_rodoviaria.columns:
+
+            if vizinho == ponto_atual.nome_cidade or ponto_atual.nome_cidade not in tabela_rodoviaria.index:
+                continue
+            
+            if vizinho not in tabela_rodoviaria.index:
+                continue
+
+            distancia_rodov = tabela_rodoviaria.loc[ponto_atual.nome_cidade, vizinho]
+            
+            if pd.isna(distancia_rodov) or distancia_rodov <= 0:
+                continue
+
+            if vizinho not in explorados:
+                explorados.add(vizinho)
+
+                custo_caminho = calcularCusto(distancia_rodov)
+                g_novo = float(ponto_atual.custo_acumulado) + custo_caminho
+
+                novo_ponto = Ponto(
+                    nome_cidade=vizinho,
+                    cidade_anterior=ponto_atual,
+                    rota_realizada=f"{ponto_atual.nome_cidade} -> {vizinho}",
+                    custo_acumulado=g_novo,
+                    profundidade=ponto_atual.profundidade + 1
+                )
+
+                if vizinho == cidade_destino:
+                    return novo_ponto
+
+                fronteira.append(novo_ponto)
+
+    return None
+
+def buscarEmProfundidade(cidade_origem, cidade_destino) -> Ponto:
+    ponto_inicial = Ponto(nome_cidade=cidade_origem, custo_acumulado = 0.0, profundidade = 0)
+
+    if cidade_origem == cidade_destino:
+        return ponto_inicial
+
+    fronteira = [ponto_inicial]
+    explorados = set()
+
+    while fronteira:
+        ponto_atual = fronteira.pop()
+
+        if ponto_atual.nome_cidade == cidade_destino:
+            return ponto_atual
+
+        if ponto_atual.nome_cidade in explorados:
+            continue
+        
+        explorados.add(ponto_atual.nome_cidade)
+
+        if ponto_atual.nome_cidade not in tabela_rodoviaria.index:
+            continue
+
+        for vizinho in reversed(tabela_rodoviaria.columns): 
+            if vizinho == ponto_atual.nome_cidade:
+                continue
+            
+            if vizinho not in tabela_rodoviaria.index:
+                continue
+
+            distancia_rodov = tabela_rodoviaria.loc[ponto_atual.nome_cidade, vizinho]
+
+            if pd.isna(distancia_rodov) or distancia_rodov <= 0:
+                continue
+
+            if vizinho not in explorados:
+                custo_caminho = calcularCusto(distancia_rodov)
+                g_novo = float(ponto_atual.custo_acumulado) + custo_caminho
+
+                novo_ponto = Ponto(
+                    nome_cidade=vizinho,
+                    cidade_anterior=ponto_atual,
+                    rota_realizada=f"{ponto_atual.nome_cidade} -> {vizinho}",
+                    custo_acumulado=g_novo,
+                    profundidade=ponto_atual.profundidade + 1
+                )
+                fronteira.append(novo_ponto)
+
+    return None
+
+def mostrarResultado(ponto_final: Ponto, cidade_origem: str):
+    print("--- Resultado da Busca ---")
+    if ponto_final:
+        print(f"Rota encontrada de '{cidade_origem}' para '{ponto_final.nome_cidade}':")
+
+        rota_detalhada = ponto_final.caminho()
+
+        if not rota_detalhada:
+             if cidade_origem == ponto_final.nome_cidade:
+                 print("  (Origem é igual ao destino)")
+        else:
+            print("  Trajeto:")
+            for trecho, cidade_chegada in rota_detalhada:
+                print(f"    - {trecho}")
+
+        print(f"\n  Custo total acumulado: {ponto_final.custo_acumulado:.2f}")
+        print(f"  Número de trechos percorridos: {ponto_final.profundidade}")
+        # profundidade + 1
+        print(f"  Número de cidades no caminho (incluindo origem): {ponto_final.profundidade + 1}")
+
+    else:
+        # Se buscarEmAlgumaCoisa retornou None
+        print(f"Não foi possível encontrar uma rota de '{cidade_origem}' para o destino solicitado.")
+    print("--------------------------")
+
+# --- Exemplo de Uso ---
+# Escolha das cidades
+print("O nosso sitema suporta:\nAracajú        | Belém          | Belo Horizonte\nBoa Vista      | Brasília       | Campo Grande  \nCuiabá         | Curitiba       | Florianópolis \nFortaleza      | Goiânia        | João Pessoa   \nMacapá         | Maceió         | Manaus        \nNatal          | Palmas         | Porto Alegre  \nPorto Velho    | Recife         | Rio Branco    \nR. Janeiro     | Salvador       | São Luis      \nSão Paulo      | Teresina       | Vitória       ")
+cidade_origem = input("\nDigite de qual cidade deseja sair: ").strip()
 cidade_destino = input("Agora digite para qual cidade deseja ir: ").strip()
 
-# 3. Executa a lógica baseada na escolha
-if escolha == '1':
-    print("\n--- Executando Busca A* ---")
-    resultadoA = buscarEmA(cidade_origem, cidade_destino)
-    if resultadoA is None:
-        print("Nenhum caminho encontrado pelo método A*!")
-    else:
-        caminho_encontrado, quantidade_cidades, distancia_percorrida = resultadoA
-        print("Resultado da busca em A*:")
-        print("- Caminho percorrido:")
-        for acao, cidade in caminho_encontrado:
-            print(f"  {acao} ({cidade})")
-        print("- Quantidade de cidades percorridas:", quantidade_cidades)
-        print("- Distância percorrida:", f"{distancia_percorrida:.2f}") # Formatando a distância
+resultadoA = buscarEmA(cidade_origem, cidade_destino)
+resultadoLargura = buscarEmLargura(cidade_origem, cidade_destino)
+resultadoProfundidade = buscarEmProfundidade(cidade_origem, cidade_destino)
 
-elif escolha == '2':
-    print("\n--- Busca blabla ---")
-    #buscarEmB()
-
-
-elif escolha == '3':
-    print("\n--- Busca bleble ---")
-    #buscarEmC()
-
-else:
-    print("\nOpção inválida! Por favor, execute novamente e escolha 1, 2 ou 3.")
-
-
-print("\nFinalizado com sucesso!")
-#print("Resultado da busca em largura: ", buscarEmLargura());
-#print("Resultado da busca em profundidade: ", buscarEmProfundidade());
+print("===========================================\nResultado de A*:\n===========================================")
+mostrarResultado(resultadoA, cidade_origem)
+print("Resultado de Largura:")
+mostrarResultado(resultadoLargura, cidade_origem)
+print("Resultado de Profundidade:")
+mostrarResultado(resultadoProfundidade, cidade_origem)
